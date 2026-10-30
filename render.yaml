@@ -1,0 +1,21 @@
+# One-click deploy to Render (https://render.com). Push this repo to GitHub, then
+# "New +" -> "Blueprint" and point it at this file. Set TWILIO_* in the dashboard
+# to send real SMS (otherwise the notifier runs in simulated mode).
+services:
+  - type: web
+    name: cardiowatch-cloud
+    runtime: docker
+    plan: free
+    envVars:
+      - key: MODE
+        value: cloud
+      - key: ALLOW_INGEST
+        value: "true"
+      - key: INGEST_TOKEN
+        sync: false
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_FROM_NUMBER
+        sync: false

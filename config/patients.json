@@ -1,0 +1,18 @@
+{
+  "P-REAL-01": {
+    "name": "Rudra",
+    "emergency": {
+      "contact_name": "Mom",
+      "contact_phone": "+917011805621",
+      "notify_enabled": true,
+      "min_severity": "critical",
+      "call_enabled": true,
+      "cooldown_s": 300.0
+    },
+    "location": {
+      "lat": 12.970943,
+      "lng": 79.163536,
+      "label": ""
+    }
+  }
+}

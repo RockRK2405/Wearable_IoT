@@ -1,0 +1,26 @@
+{
+  "heart_rate": {
+    "crit_low": 40,
+    "warn_low": 50,
+    "warn_high": 100,
+    "crit_high": 130,
+    "valid_min": 25,
+    "valid_max": 250
+  },
+  "spo2": {
+    "warn_below": 94,
+    "crit_below": 90
+  },
+  "ecg": {
+    "rr_cv_warn": 0.15,
+    "rr_cv_crit": 0.3,
+    "pause_warn_ms": 2000,
+    "pause_crit_ms": 3000,
+    "min_beats": 6,
+    "min_quality": 0.5
+  },
+  "alerting": {
+    "open_after_s": 3,
+    "close_after_s": 5
+  }
+}

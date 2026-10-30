@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CardioWatch Cloud</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <span class="logo">❤</span>
+    <div>
+      <h1>CardioWatch <span class="cloud">Cloud</span></h1>
+      <p class="tagline">ECG &amp; SpO₂ monitoring with automatic emergency alerts</p>
+    </div>
+  </div>
+  <div class="conn">
+    <span id="modeBadge" class="badge">—</span>
+    <span id="connDot" class="dot off" title="connection"></span>
+    <span id="connText">connecting…</span>
+  </div>
+</header>
+
+<div id="banner" class="banner none">
+  <div class="banner-main">
+    <span id="statusPill" class="pill">NO DATA</span>
+    <span id="statusMsg">Waiting for readings…</span>
+  </div>
+  <div class="banner-side">
+    <span id="patientName">—</span>
+    <span id="sourceTag" class="src"></span>
+  </div>
+</div>
+
+<main>
+  <section class="cards">
+    <div class="card vital" id="hrCard">
+      <div class="label">Heart rate</div>
+      <div class="value"><span id="hr">—</span><span class="unit">bpm</span></div>
+      <div class="sub" id="hrSub">waiting…</div>
+    </div>
+    <div class="card vital" id="spCard">
+      <div class="label">SpO₂</div>
+      <div class="value"><span id="spo2">—</span><span class="unit">%</span></div>
+      <div class="sub" id="spSub">blood oxygen</div>
+    </div>
+    <div class="card vital" id="ecgCard">
+      <div class="label">ECG signal</div>
+      <div class="value small"><span id="leads">—</span></div>
+      <div class="sub">quality <span id="quality">—</span> · <span id="beats">—</span> beats/win</div>
+    </div>
+  </section>
+
+  <section class="card wide">
+    <div class="card-head"><h2>Live ECG</h2><span class="muted" id="ecgInfo"></span></div>
+    <canvas id="ecgCanvas" height="220"></canvas>
+  </section>
+
+  <div class="two-col">
+    <section class="card">
+      <div class="card-head"><h2>Emergency contact &amp; location</h2></div>
+      <p class="muted small">When an abnormal ECG/SpO₂ episode is detected, this contact is texted automatically with a map link to the location below.</p>
+      <label>Patient</label>
+      <select id="patientSel"></select>
+      <div class="grid2">
+        <div><label>Patient name</label><input id="pName" type="text" placeholder="e.g. Rudra Khale"></div>
+        <div><label>Contact name</label><input id="cName" type="text" placeholder="e.g. Mother"></div>
+      </div>
+      <label>Emergency contact number</label>
+      <input id="cPhone" type="tel" placeholder="+91 98XXXXXXXX (with country code)">
+      <div class="grid3">
+        <div>
+          <label>Alert on</label>
+          <select id="minSev"><option value="critical">Critical only</option><option value="warning">Warning + Critical</option></select>
+        </div>
+        <div class="chkwrap"><label class="chk"><input id="notifyEnabled" type="checkbox" checked> Notifications on</label></div>
+        <div class="chkwrap"><label class="chk"><input id="callEnabled" type="checkbox"> Also place a call</label></div>
+      </div>
+      <hr>
+      <label>Location</label>
+      <input id="locLabel" type="text" placeholder="Address / label e.g. Home, Katpadi, Vellore">
+      <div class="grid3">
+        <div><label class="small">Latitude</label><input id="lat" type="number" step="0.000001" placeholder="12.9716"></div>
+        <div><label class="small">Longitude</label><input id="lng" type="number" step="0.000001" placeholder="77.5946"></div>
+        <div class="chkwrap"><button id="geoBtn" class="btn ghost" type="button">📍 Use my location</button></div>
+      </div>
+      <div class="row">
+        <a id="mapLink" class="maplink" target="_blank" rel="noopener" style="display:none">View location on map ↗</a>
+      </div>
+      <div class="actions">
+        <button id="saveBtn" class="btn primary" type="button">Save</button>
+        <button id="testBtn" class="btn warn" type="button">Send test alert</button>
+        <span id="saveMsg" class="savemsg"></span>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><h2>Alerts</h2><span class="muted small" id="alertCount"></span></div>
+      <div id="alertList" class="list"><p class="muted small empty">No alerts yet. All clear.</p></div>
+      <div class="card-head" style="margin-top:18px"><h2>Emergency notifications sent</h2></div>
+      <div id="notifBadge" class="muted small"></div>
+      <div id="notifList" class="list"><p class="muted small empty">None sent yet.</p></div>
+    </section>
+  </div>
+
+  <p class="disclaimer" id="disclaimer"></p>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>
