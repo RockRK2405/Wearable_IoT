@@ -119,10 +119,37 @@ function renderLive() {
   }
   const hrSev = l ? (sevOfCode(l.findings, "HR_") || (l.hr_bpm != null ? "normal" : null)) : null;
   const spSev = l ? (sevOfCode(l.findings, "SPO2") || (l.spo2_pct != null ? "normal" : null)) : null;
+  const tempSev = l ? (sevOfCode(l.findings, "TEMP_") || (l.temperature_c != null ? "normal" : null)) : null;
+  const vibSev = l ? (sevOfCode(l.findings, "TREMOR_") || (l.vibration_intensity != null ? "normal" : null)) : null;
+
   setVitalClass($("#hrCard"), hrSev); setVitalClass($("#spCard"), spSev);
+  setVitalClass($("#tempCard"), tempSev); setVitalClass($("#vibCard"), vibSev);
+
   $("#hr").textContent = l ? fmt(l.hr_bpm) : "—";
   $("#hrSub").textContent = l && l.hr_source === "ecg" ? "from ECG R-peaks" : l && l.hr_source === "ppg" ? "from SpO₂ pulse" : "no valid heart rate";
   $("#spo2").textContent = l ? fmt(l.spo2_pct) : "—";
+  $("#temp").textContent = l ? fmt(l.temperature_c, 1) : "—";
+  $("#tempSub").textContent = l && l.temperature_c >= 38.5 ? "fever / hyperthermia" : l && l.temperature_c <= 35.5 ? "hypothermia" : "normal core temp";
+  $("#vib").textContent = l ? fmt(l.vibration_intensity, 2) : "—";
+  $("#vibSub").textContent = l && l.vibration_intensity >= 0.70 ? "intense tremor / clonic jerk" : l && l.vibration_intensity >= 0.40 ? "elevated muscle tremor" : "resting / minimal tremor";
+
+  const isSeiz = !!(l && l.seizure_detected);
+  const scCard = $("#seizureCard");
+  const stEl = $("#seizureStatus");
+  scCard.classList.remove("seizure-alert", "warning", "critical");
+  if (isSeiz) {
+    stEl.textContent = "SEIZURE ALERT";
+    scCard.classList.add("seizure-alert");
+    $("#seizureSub").textContent = `CLONIC SEIZURE (${((l.seizure_prob || 0) * 100).toFixed(0)}% ML prob)`;
+  } else if (l && l.seizure_class === "exercise") {
+    stEl.textContent = "EXERCISE";
+    scCard.classList.add("warning");
+    $("#seizureSub").textContent = "physical activity (non-seizure)";
+  } else {
+    stEl.textContent = "NORMAL";
+    $("#seizureSub").textContent = `ML prob ${l && l.seizure_prob != null ? ((l.seizure_prob) * 100).toFixed(0) : 0}% · Random Forest`;
+  }
+
   $("#leads").textContent = l ? (l.leads_off ? "leads off" : "connected") : "—";
   $("#quality").textContent = l && l.ecg_quality != null ? fmt(l.ecg_quality, 2) : "—";
   $("#beats").textContent = l && l.beats_in_window != null ? l.beats_in_window : "—";

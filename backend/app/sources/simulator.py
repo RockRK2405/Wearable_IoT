@@ -16,15 +16,15 @@ log = logging.getLogger("simulator")
 TICK_S = 0.1
 
 DEMO_PROGRAMS = {
-    0: [("normal", 40), ("tachycardia", 30), ("normal", 35), ("hypoxia", 35), ("normal", 40),
-        ("irregular_rhythm", 30), ("normal", 35), ("bradycardia", 30), ("normal", 30), ("pause", 4),
-        ("normal", 35), ("leads_off", 12), ("normal", 25), ("finger_off", 10), ("normal", 25)],
-    1: [("normal", 90), ("hypoxia", 30), ("normal", 120), ("tachycardia", 25), ("normal", 100)],
+    0: [("normal", 40), ("tachycardia", 30), ("normal", 35), ("seizure_clonic", 25), ("normal", 35),
+        ("hypoxia", 35), ("normal", 40), ("irregular_rhythm", 30), ("normal", 35), ("bradycardia", 30),
+        ("normal", 30), ("pause", 4), ("normal", 35), ("leads_off", 12), ("normal", 25), ("finger_off", 10), ("normal", 25)],
+    1: [("normal", 90), ("seizure_clonic", 25), ("normal", 60), ("hypoxia", 30), ("normal", 120), ("tachycardia", 25), ("normal", 100)],
 }
 NAMES = ["Simulated Patient A", "Simulated Patient B", "Simulated Patient C",
          "Simulated Patient D", "Simulated Patient E", "Simulated Patient F"]
-RANDOM_WEIGHTS = {"normal": 0.62, "tachycardia": 0.06, "bradycardia": 0.04, "hypoxia": 0.07,
-                  "irregular_rhythm": 0.06, "pause": 0.02, "leads_off": 0.05, "finger_off": 0.05, "motion_artifact": 0.03}
+RANDOM_WEIGHTS = {"normal": 0.58, "seizure_clonic": 0.04, "exercise": 0.03, "tachycardia": 0.06, "bradycardia": 0.04, "hypoxia": 0.07,
+                  "irregular_rhythm": 0.05, "pause": 0.02, "leads_off": 0.05, "finger_off": 0.04, "motion_artifact": 0.02}
 
 
 class SimPatient:
@@ -39,6 +39,7 @@ class SimPatient:
         self.base = Baseline.random(rng)
         self.params = target_params("normal", self.base, rng)
         self.hr, self.spo2 = self.params.hr, self.params.spo2
+        self.temp, self.vib = self.params.temp, self.params.vib
         self.t_idx = 0
         self.sim_t = 0.0
         self.beats: list[tuple[float, float]] = []
@@ -89,8 +90,12 @@ class SimPatient:
                 self.pending_pause = True
         a_hr = 1 - np.exp(-TICK_S / 5.0)
         a_sp = 1 - np.exp(-TICK_S / 8.0)
+        a_temp = 1 - np.exp(-TICK_S / 10.0)
+        a_vib = 1 - np.exp(-TICK_S / 2.0)
         self.hr += (self.params.hr - self.hr) * a_hr
         self.spo2 += (self.params.spo2 - self.spo2) * a_sp
+        self.temp += (self.params.temp - self.temp) * a_temp
+        self.vib += (self.params.vib - self.vib) * a_vib
 
     # ----- signal generation -----
     def _schedule_beats(self, until: float) -> None:
@@ -125,10 +130,13 @@ class SimPatient:
         p = self.params
         spo2 = min(100.0, max(60.0, round(self.spo2 + float(self.rng.normal(0, 0.4)))))
         pulse = round(self.hr + float(self.rng.normal(0, 1.2)))
+        temp = round(self.temp + float(self.rng.normal(0, 0.05)), 1)
+        vib = max(0.01, round(self.vib + float(self.rng.normal(0, 0.02)), 2))
         return {"type": "vitals", "dev": self.dev, "pid": self.pid, "pname": self.name, "sim": 1,
                 "ts": int(self.sim_t * 1000), "finger": int(p.finger_on),
                 "spo2": spo2 if p.finger_on else None, "spo2_valid": int(p.finger_on),
-                "pulse": pulse if p.finger_on else None, "pulse_valid": int(p.finger_on)}
+                "pulse": pulse if p.finger_on else None, "pulse_valid": int(p.finger_on),
+                "temp": temp, "vib": vib}
 
     def step(self) -> list[dict]:
         self._update_params()

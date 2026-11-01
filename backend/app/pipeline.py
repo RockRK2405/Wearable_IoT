@@ -101,7 +101,13 @@ class Pipeline:
                               "data_source": "simulated" if st.is_sim else "real", "samples": samples})
         else:
             st.last_vitals_rx = now
-            st.vitals = {"spo2": msg["spo2"], "pulse": msg["pulse"], "finger": msg["finger"]}
+            st.vitals = {
+                "spo2": msg.get("spo2"),
+                "pulse": msg.get("pulse"),
+                "finger": msg.get("finger"),
+                "temp": msg.get("temp"),
+                "vib": msg.get("vib"),
+            }
 
     # ---------- periodic reading ----------
     async def run_ticks(self) -> None:
@@ -181,7 +187,9 @@ class Pipeline:
             ecg_hr=metrics.hr_bpm if metrics else None, n_beats=metrics.n_beats if metrics else 0,
             rr_cv=metrics.rr_cv if metrics else None, max_rr_ms=metrics.max_rr_ms if metrics else None,
             ecg_quality=metrics.quality if metrics else None,
-            pulse_bpm=vit.get("pulse"), spo2=vit.get("spo2"), finger=vit.get("finger") if vit_fresh else None)
+            pulse_bpm=vit.get("pulse"), spo2=vit.get("spo2"), finger=vit.get("finger") if vit_fresh else None,
+            temperature_c=vit.get("temp"), vibration_intensity=vit.get("vib"),
+            rmssd_ms=metrics.rmssd_ms if metrics else None)
         ev = evaluate(m, th)
         finger = vit.get("finger") if vit_fresh else None
         row = {
@@ -190,6 +198,11 @@ class Pipeline:
             "patient_id": st.pid, "device_id": st.dev,
             "hr_bpm": round(ev.hr_bpm, 1) if ev.hr_bpm is not None else None, "hr_source": ev.hr_source,
             "pulse_bpm": vit.get("pulse"), "spo2_pct": vit.get("spo2") if finger is not False else None,
+            "temperature_c": round(vit["temp"], 1) if vit.get("temp") is not None else None,
+            "vibration_intensity": round(vit["vib"], 2) if vit.get("vib") is not None else None,
+            "seizure_detected": int(ev.seizure_detected),
+            "seizure_prob": round(ev.seizure_prob, 3),
+            "seizure_class": ev.seizure_class,
             "rr_mean_ms": round(metrics.rr_mean_ms, 1) if metrics and metrics.rr_mean_ms else None,
             "sdnn_ms": round(metrics.sdnn_ms, 1) if metrics and metrics.sdnn_ms else None,
             "rmssd_ms": round(metrics.rmssd_ms, 1) if metrics and metrics.rmssd_ms else None,

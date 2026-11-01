@@ -29,8 +29,10 @@ from backend.app.thresholds import Thresholds  # noqa: E402
 
 # per-step probability of starting an episode, and (min, max) length in steps
 RATES = {"tachycardia": 0.00045, "bradycardia": 0.00025, "hypoxia": 0.0006, "irregular_rhythm": 0.0005,
+         "seizure_clonic": 0.00035, "febrile_seizure": 0.00015,
          "pause": 0.00012, "leads_off": 0.0008, "finger_off": 0.0010, "motion_artifact": 0.0008}
 LENGTH = {"tachycardia": (6, 40), "bradycardia": (6, 30), "hypoxia": (6, 50), "irregular_rhythm": (8, 60),
+          "seizure_clonic": (4, 18), "febrile_seizure": (4, 20),
           "pause": (1, 1), "leads_off": (2, 12), "finger_off": (2, 14), "motion_artifact": (2, 10),
           "light_activity": (6, 40)}
 WINDOW_S, FS, SNIP_FS = 10.0, 250, 50
@@ -119,7 +121,8 @@ def generate(out: Path, patients=5, days=3, interval_s=30, seed=42, end: datetim
                     rr_cv=mt["cv"] if mt else None, max_rr_ms=mt["max_rr"] if mt else None,
                     ecg_quality=quality if ecg_state == "ok" else None,
                     pulse_bpm=pulse if p.finger_on else None, spo2=spo2 if p.finger_on else None,
-                    finger=p.finger_on)
+                    finger=p.finger_on, temperature_c=p.temp, vibration_intensity=p.vib,
+                    rmssd_ms=mt["rmssd"] if mt and ecg_state == "ok" else None)
                 ev = evaluate(m, th)
 
                 # 1-second ECG snippet at 50 Hz (hundredths of mV, integers)
@@ -137,6 +140,10 @@ def generate(out: Path, patients=5, days=3, interval_s=30, seed=42, end: datetim
                     "data_source": "synthetic", "patient_id": pid, "device_id": dev,
                     "hr_bpm": round(ev.hr_bpm, 1) if ev.hr_bpm is not None else None, "hr_source": ev.hr_source,
                     "pulse_bpm": m.pulse_bpm, "spo2_pct": m.spo2,
+                    "temperature_c": round(p.temp, 1),
+                    "vibration_intensity": round(p.vib, 2),
+                    "seizure_detected": int(ev.seizure_detected),
+                    "seizure_prob": round(ev.seizure_prob, 3),
                     "rr_mean_ms": round(mt["mean"], 1) if mt and ecg_state == "ok" else None,
                     "sdnn_ms": round(mt["sdnn"], 1) if mt and ecg_state == "ok" else None,
                     "rmssd_ms": round(mt["rmssd"], 1) if mt and ecg_state == "ok" else None,

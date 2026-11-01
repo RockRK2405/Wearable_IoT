@@ -31,6 +31,17 @@
 #define PIN_SCL 22
 #define FINGER_IR_THRESHOLD 30000   // raw IR counts above this = finger present
 
+// ---- Epilepsy & Seizure Monitoring Sensors (IEEE PuneCon 2025 Architecture) ----
+// 1. DS18B20 digital temperature sensor (OneWire)
+#define USE_DS18B20   1
+#define PIN_DS18B20   4    // GPIO 4 for DS18B20 OneWire data line (needs 4.7k pull-up to 3V3)
+
+// 2. Vibration / Tremor sensor (SW-420 or analog/digital vibration sensor)
+#define USE_VIBRATION 1
+#define PIN_VIBRATION 27   // GPIO 27 (Digital or ADC input for vibration sensor)
+#define VIBRATION_IS_ANALOG 0 // 0 = Digital pulse counter (SW-420), 1 = Analog voltage (0..4095)
+#define VIBRATION_CAL_SCALE 1.0f // Scale factor to approximate vibration intensity in m/s^2
+
 // ---- how often to upload one reading (ms). 1000 = once per second. ----
 #define UPLOAD_INTERVAL_MS 1000
 
@@ -46,9 +57,10 @@
 // goes to ThingSpeak so the channel's public chart can be shown separately
 // (e.g. to a professor), without touching the detection/alert pipeline.
 // Create a channel at thingspeak.com, then fill in its Write API Key below.
-//   Field 1 = heart rate (bpm)        Field 4 = latitude  (if USE_GPS)
-//   Field 2 = SpO2 (%)                Field 5 = longitude (if USE_GPS)
-//   Field 3 = leads-off / no-finger status (0 = ok, 1 = sensor issue)
+//   Field 1 = heart rate (bpm)        Field 5 = seizure flag (0 = normal, 1 = seizure)
+//   Field 2 = SpO2 (%)                Field 6 = latitude  (if USE_GPS)
+//   Field 3 = temperature (°C)        Field 7 = longitude (if USE_GPS)
+//   Field 4 = vibration (m/s²)        Field 8 = sensor / status flag
 #define USE_THINGSPEAK 1
 #define THINGSPEAK_API_KEY "Q17MAE6JKKA6QL3V"
 // ThingSpeak's free tier accepts at most one update every 15 s; 20 s leaves margin.

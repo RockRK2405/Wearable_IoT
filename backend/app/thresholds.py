@@ -56,11 +56,21 @@ class AlertingRules(BaseModel):
     close_after_s: float = Field(5, ge=0, le=300)
 
 
+class EpilepsyLimits(BaseModel):
+    vibration_tremor_warn: float = Field(0.40, ge=0.05, le=5.0)  # m/s^2
+    vibration_tremor_crit: float = Field(0.70, ge=0.10, le=10.0) # m/s^2
+    temp_warn_low: float = Field(35.5, ge=30.0, le=37.0)        # deg C
+    temp_warn_high: float = Field(37.8, ge=36.0, le=41.0)       # deg C
+    temp_crit_high: float = Field(39.0, ge=37.0, le=43.0)       # deg C
+    seizure_prob_threshold: float = Field(0.60, ge=0.1, le=0.99)
+
+
 class Thresholds(BaseModel):
     heart_rate: HeartRateLimits = HeartRateLimits()
     spo2: Spo2Limits = Spo2Limits()
     ecg: EcgLimits = EcgLimits()
     alerting: AlertingRules = AlertingRules()
+    epilepsy: EpilepsyLimits = EpilepsyLimits()
 
 
 def _merge(base: dict, patch: dict) -> dict:

@@ -161,10 +161,14 @@ def create_app(settings: Settings | None = None, start_source: bool = True) -> F
                                  "fs": fs, "lo": 1 if body.get("leads_off") else 0,
                                  "s": list(ecg), "sim": False})
                 accepted.append("ecg")
-            if any(k in body for k in ("spo2", "pulse", "finger")):
+            if any(k in body for k in ("spo2", "pulse", "finger", "temp", "temperature", "temperature_c", "vib", "vibration", "vibration_intensity")):
+                temp = body.get("temp") if "temp" in body else body.get("temperature_c") if "temperature_c" in body else body.get("temperature")
+                vib = body.get("vib") if "vib" in body else body.get("vibration_intensity") if "vibration_intensity" in body else body.get("vibration")
                 pipeline.handle({"type": "vitals", "dev": dev, "pid": pid,
                                  "spo2": body.get("spo2"), "pulse": body.get("pulse"),
-                                 "finger": bool(body.get("finger", True)), "sim": False})
+                                 "finger": bool(body.get("finger", True)),
+                                 "temp": temp, "vib": vib,
+                                 "sim": False})
                 accepted.append("vitals")
 
         # optional device GPS -> update the patient's stored coordinates (keep label)
@@ -179,6 +183,32 @@ def create_app(settings: Settings | None = None, start_source: bool = True) -> F
         if not accepted:
             raise HTTPException(422, "no ecg or vitals fields in body")
         return {"ok": True, "accepted": accepted, "patient_id": pid}
+
+    # ---------------- epilepsy & seizure monitoring ----------------
+    @app.get("/api/epilepsy/model")
+    def get_epilepsy_model():
+        from .seizure_ml import FEATURE_IMPORTANCES, FEATURE_NAMES
+        return {
+            "model": "RandomForestClassifier",
+            "paper": "Smart AIOT Band for Clonic Seizure Monitoring in Epilepsy Management (IEEE PuneCon)",
+            "accuracy_clean": 1.00,
+            "accuracy_noisy": 0.9636,
+            "features": FEATURE_NAMES,
+            "feature_importances": FEATURE_IMPORTANCES,
+            "target_classes": ["normal", "clonic_seizure", "febrile_seizure", "exercise", "tremor"],
+        }
+
+    @app.post("/api/epilepsy/classify")
+    def classify_reading(reading: dict = Body(...)):
+        from .seizure_ml import predict_seizure
+        hr = reading.get("hr_bpm") or reading.get("heart_rate") or reading.get("pulse")
+        vib = reading.get("vibration_intensity") or reading.get("vib")
+        spo2 = reading.get("spo2_pct") or reading.get("spo2")
+        temp = reading.get("temperature_c") or reading.get("temp")
+        rmssd = reading.get("rmssd_ms")
+        th = float(reading.get("threshold", 0.60))
+        pred = predict_seizure(hr, vib, spo2, temp, rmssd, threshold=th)
+        return pred.to_dict()
 
     # ---------------- patients / emergency contact ----------------
     @app.get("/api/patients")

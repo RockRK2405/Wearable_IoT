@@ -21,6 +21,7 @@ from generate_dataset import generate  # noqa: E402
 
 
 def mk_settings(tmp_path, **kw):
+    kw.setdefault("mode", "simulated")
     return load_settings(data_dir=tmp_path, results_csv=tmp_path / "results.csv",
                          simulated_csv=tmp_path / "sim.csv", real_csv=tmp_path / "real.csv",
                          thresholds_path=tmp_path / "th.json",
@@ -137,15 +138,18 @@ def test_websocket_live_stream(client):
 
 def test_serial_source_with_pty(tmp_path):
     """End-to-end serial path using a pseudo-terminal as a fake USB port."""
-    master, slave = pty.openpty()
-    port = os.ttyname(slave)
+    try:
+        master, slave = pty.openpty()
+        port = os.ttyname(slave)
+    except (OSError, Exception) as e:
+        pytest.skip(f"PTY not available in sandbox: {e}")
     s = mk_settings(tmp_path, mode="serial", serial_port=port)
     app = create_app(s)
     sp = SimPatient(0, s, np.random.default_rng(2))
     with TestClient(app) as c:
         for _ in range(60):  # 6 s of device data, written like firmware would (no 'sim' flag)
             for msg in sp.step():
-                msg.pop("sim")
+                msg.pop("sim", None)
                 os.write(master, (json.dumps(msg) + "\n").encode())
             os.write(master, b"# debug line from firmware\n")
         time.sleep(1.5)

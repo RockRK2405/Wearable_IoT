@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from .seizure_ml import predict_seizure
 from .thresholds import Thresholds
 
 SEVERITY = {"normal": 0, "warning": 1, "critical": 2}
@@ -16,6 +17,11 @@ CODE_INFO = {
     "HR_HIGH": ("vital", "Heart rate above limit"),
     "HR_LOW": ("vital", "Heart rate below limit"),
     "SPO2_LOW": ("vital", "SpO2 below limit"),
+    "TEMP_HIGH": ("vital", "Body temperature above limit (fever)"),
+    "TEMP_LOW": ("vital", "Body temperature below limit (hypothermia)"),
+    "SEIZURE_CLONIC": ("seizure", "Clonic seizure detected (tremors + tachycardia + desaturation)"),
+    "FEBRILE_SEIZURE": ("seizure", "Febrile seizure risk (high fever + tremor)"),
+    "TREMOR_DETECTED": ("seizure", "Abnormal rhythmic muscle tremor detected"),
     "ECG_IRREGULAR": ("ecg_heuristic", "Irregular R-R intervals (heuristic)"),
     "ECG_PAUSE": ("ecg_heuristic", "Long R-R pause (heuristic)"),
     "LEADS_OFF": ("sensor", "ECG leads off"),
@@ -27,6 +33,7 @@ CODE_INFO = {
 NOTES = {
     "vital": "Threshold alert on a configurable limit - not a diagnosis.",
     "ecg_heuristic": "Heuristic R-R flag - not a clinically validated ECG diagnosis.",
+    "seizure": "Epilepsy / seizure screening alert based on multi-sensor physiological markers and ML inference.",
     "sensor": "Sensor / signal-quality notice - readings may be unreliable.",
 }
 
@@ -47,6 +54,9 @@ class Measurements:
     pulse_bpm: float | None = None
     spo2: float | None = None
     finger: bool | None = None
+    temperature_c: float | None = None
+    vibration_intensity: float | None = None
+    rmssd_ms: float | None = None
 
 
 @dataclass
@@ -74,6 +84,9 @@ class Evaluation:
     hr_bpm: float | None
     hr_source: str
     ecg_irregular: bool
+    seizure_detected: bool = False
+    seizure_prob: float = 0.0
+    seizure_class: str = "normal"
 
 
 def format_codes(findings: list[Finding]) -> str:
@@ -153,8 +166,51 @@ def evaluate(m: Measurements, th: Thresholds) -> Evaluation:
             F.append(Finding("ECG_IRREGULAR", sev, f"Irregular R-R intervals (variability {m.rr_cv:.2f}) - heuristic flag, not a diagnosis", m.rr_cv, lim))
             irregular = True
 
+    # ---- Temperature ----
+    ep_th = getattr(th, "epilepsy", None)
+    if m.temperature_c is not None and ep_th is not None:
+        tc = m.temperature_c
+        if tc >= ep_th.temp_crit_high:
+            F.append(Finding("TEMP_HIGH", "critical", f"Critical high fever {tc:.1f}°C above {ep_th.temp_crit_high:.1f}°C", tc, ep_th.temp_crit_high))
+        elif tc >= ep_th.temp_warn_high:
+            F.append(Finding("TEMP_HIGH", "warning", f"Elevated temperature {tc:.1f}°C above {ep_th.temp_warn_high:.1f}°C", tc, ep_th.temp_warn_high))
+        elif tc <= ep_th.temp_warn_low:
+            F.append(Finding("TEMP_LOW", "warning", f"Low temperature {tc:.1f}°C below {ep_th.temp_warn_low:.1f}°C", tc, ep_th.temp_warn_low))
+
+    # ---- Vibration / Tremors ----
+    if m.vibration_intensity is not None and ep_th is not None:
+        vib = m.vibration_intensity
+        if vib >= ep_th.vibration_tremor_crit:
+            F.append(Finding("TREMOR_DETECTED", "critical", f"Intense muscle tremor/vibration {vib:.2f} m/s² above {ep_th.vibration_tremor_crit:.2f} m/s²", vib, ep_th.vibration_tremor_crit))
+        elif vib >= ep_th.vibration_tremor_warn:
+            F.append(Finding("TREMOR_DETECTED", "warning", f"Abnormal muscle tremor {vib:.2f} m/s² above {ep_th.vibration_tremor_warn:.2f} m/s²", vib, ep_th.vibration_tremor_warn))
+
+    # ---- Machine Learning Seizure Detection ----
+    seizure_detected = False
+    seizure_prob = 0.0
+    seizure_class = "normal"
+    prob_th = ep_th.seizure_prob_threshold if ep_th else 0.60
+    if m.vibration_intensity is not None or hr_val is not None:
+        try:
+            pred = predict_seizure(
+                heart_rate=hr_val,
+                vibration_intensity=m.vibration_intensity,
+                spo2=m.spo2 if ppg_ok else None,
+                temperature_c=m.temperature_c,
+                rmssd_ms=m.rmssd_ms,
+                threshold=prob_th,
+            )
+            seizure_prob = pred.probability
+            seizure_class = pred.classification
+            if pred.is_seizure:
+                seizure_detected = True
+                code = "FEBRILE_SEIZURE" if pred.classification == "febrile_seizure" else "SEIZURE_CLONIC"
+                F.append(Finding(code, "critical", pred.explanation, value=pred.probability, limit=prob_th))
+        except Exception:
+            pass
+
     status = "normal"
     for f in F:
         if SEVERITY[f.severity] > SEVERITY[status]:
             status = f.severity
-    return Evaluation(status, F, hr_val, src, irregular)
+    return Evaluation(status, F, hr_val, src, irregular, seizure_detected, seizure_prob, seizure_class)

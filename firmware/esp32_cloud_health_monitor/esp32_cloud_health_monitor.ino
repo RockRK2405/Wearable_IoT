@@ -30,6 +30,22 @@
 #include "MAX30105.h"
 #include "spo2_algorithm.h"
 
+#if USE_DS18B20
+  #include <OneWire.h>
+  #include <DallasTemperature.h>
+  OneWire oneWire(PIN_DS18B20);
+  DallasTemperature tempSensors(&oneWire);
+  float currentTempC = 36.8f;
+  uint32_t lastTempRequest = 0;
+  bool tempRequested = false;
+#endif
+
+#if USE_VIBRATION
+  volatile uint32_t vibrationPulses = 0;
+  float currentVibration = 0.05f;
+  void IRAM_ATTR onVibPulse() { vibrationPulses++; }
+#endif
+
 #if USE_GPS
   #include <TinyGPSPlus.h>
   TinyGPSPlus gps;
@@ -88,6 +104,21 @@ void setup() {
     Serial.println("MAX30102: NOT found (SpO2/pulse will be blank)");
   }
 
+#if USE_DS18B20
+  tempSensors.begin();
+  tempSensors.setWaitForConversion(false);
+  tempSensors.requestTemperatures();
+  lastTempRequest = millis();
+  tempRequested = true;
+  Serial.println("DS18B20: ready (epilepsy temperature monitoring)");
+#endif
+
+#if USE_VIBRATION
+  pinMode(PIN_VIBRATION, INPUT_PULLDOWN);
+  attachInterrupt(digitalPinToInterrupt(PIN_VIBRATION), onVibPulse, RISING);
+  Serial.println("Vibration sensor: ready (clonic tremor monitoring)");
+#endif
+
 #if USE_GPS
   GPSser.begin(GPS_BAUD, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
 #endif
@@ -137,8 +168,30 @@ void serviceMax() {
 void serviceGps() { while (GPSser.available()) gps.encode(GPSser.read()); }
 #endif
 
+#if USE_DS18B20
+void serviceTemperature() {
+  uint32_t now = millis();
+  if (tempRequested && (now - lastTempRequest >= 750)) {
+    float t = tempSensors.getTempCByIndex(0);
+    if (t > -50.0f && t < 85.0f) { currentTempC = t; }
+    tempSensors.requestTemperatures();
+    lastTempRequest = now;
+  }
+}
+#endif
+
+#if USE_VIBRATION
+void serviceVibration() {
+  uint32_t p = vibrationPulses;
+  vibrationPulses = 0;
+  // Convert pulse count per second into approximate tremor intensity (m/s^2)
+  currentVibration = (p * 0.045f) * VIBRATION_CAL_SCALE;
+  if (currentVibration < 0.02f) currentVibration = 0.02f;
+}
+#endif
+
 String buildJson(bool lo) {
-  String j; j.reserve(ECG_CAP * 5 + 200);
+  String j; j.reserve(ECG_CAP * 5 + 250);
   j += "{\"dev\":\""; j += DEVICE_ID; j += "\",\"pid\":\""; j += PATIENT_ID;
   j += "\",\"fs\":"; j += ECG_FS;
   j += ",\"leads_off\":"; j += (lo ? 1 : 0);
@@ -149,6 +202,12 @@ String buildJson(bool lo) {
   j += ",\"finger\":"; j += (finger ? "true" : "false");
   if (finger && spo2Valid && spo2 > 0) { j += ",\"spo2\":"; j += spo2; }
   if (finger && hrValid && heartRate > 0) { j += ",\"pulse\":"; j += heartRate; }
+#if USE_DS18B20
+  j += ",\"temp\":"; j += String(currentTempC, 1);
+#endif
+#if USE_VIBRATION
+  j += ",\"vib\":"; j += String(currentVibration, 2);
+#endif
 #if USE_GPS
   if (gps.location.isValid()) {
     j += ",\"lat\":"; j += String(gps.location.lat(), 6);
@@ -180,10 +239,7 @@ void upload(const String &json) {
 }
 
 #if USE_THINGSPEAK
-// Mirror the latest reading to a ThingSpeak channel via a plain HTTP GET.
-// Independent of upload() above: runs on its own slower interval (ThingSpeak's
-// free tier rejects updates closer together than 15 s) and never blocks or
-// replaces the per-second POST to the CardioWatch backend.
+// Mirror readings to ThingSpeak channel using 8-field layout (IEEE PuneCon paper)
 void uploadThingSpeak(bool lo) {
   if (WiFi.status() != WL_CONNECTED) return;
   bool finger = haveMax && lastIr > FINGER_IR_THRESHOLD;
@@ -191,13 +247,23 @@ void uploadThingSpeak(bool lo) {
   url += THINGSPEAK_API_KEY;
   if (finger && hrValid && heartRate > 0)  { url += "&field1="; url += heartRate; }
   if (finger && spo2Valid && spo2 > 0)     { url += "&field2="; url += spo2; }
-  url += "&field3="; url += (lo || !finger) ? 1 : 0;
+#if USE_DS18B20
+  url += "&field3="; url += String(currentTempC, 1);
+#endif
+#if USE_VIBRATION
+  url += "&field4="; url += String(currentVibration, 2);
+#endif
+  // Field 5: Seizure Flag (1 = suspected seizure event, 0 = normal)
+  bool seizure = (heartRate >= 100 && spo2 > 0 && spo2 <= 90 && currentVibration >= 0.60f);
+  url += "&field5="; url += (seizure ? 1 : 0);
 #if USE_GPS
   if (gps.location.isValid()) {
-    url += "&field4="; url += String(gps.location.lat(), 6);
-    url += "&field5="; url += String(gps.location.lng(), 6);
+    url += "&field6="; url += String(gps.location.lat(), 6);
+    url += "&field7="; url += String(gps.location.lng(), 6);
   }
 #endif
+  url += "&field8="; url += (lo || !finger) ? 1 : 0;
+
   HTTPClient http;
   if (!http.begin(url)) { Serial.println("ThingSpeak: http.begin failed"); return; }
   int code = http.GET();
@@ -210,11 +276,17 @@ void uploadThingSpeak(bool lo) {
 void loop() {
   sampleEcg();
   serviceMax();
+#if USE_DS18B20
+  serviceTemperature();
+#endif
 #if USE_GPS
   serviceGps();
 #endif
   if (millis() - lastUpload >= UPLOAD_INTERVAL_MS) {
     lastUpload += UPLOAD_INTERVAL_MS;
+#if USE_VIBRATION
+    serviceVibration();
+#endif
     bool lo = leadsOff();
     String json = buildJson(lo);
     ecgCount = 0;                 // start a fresh second

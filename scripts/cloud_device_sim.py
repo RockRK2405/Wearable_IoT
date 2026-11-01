@@ -43,10 +43,13 @@ def ecg_second(fs: int, hr: float, noise: float, rng) -> list[int]:
 
 
 SCENARIOS = {
-    "normal": dict(hr=74, spo2=98, noise=0.03),
-    "tachycardia": dict(hr=135, spo2=96, noise=0.04),
-    "bradycardia": dict(hr=42, spo2=97, noise=0.03),
-    "hypoxia": dict(hr=112, spo2=82, noise=0.05),
+    "normal": dict(hr=74, spo2=98, temp=36.8, vib=0.05, noise=0.03),
+    "tachycardia": dict(hr=135, spo2=96, temp=37.1, vib=0.10, noise=0.04),
+    "bradycardia": dict(hr=42, spo2=97, temp=36.6, vib=0.04, noise=0.03),
+    "hypoxia": dict(hr=112, spo2=82, temp=37.0, vib=0.08, noise=0.05),
+    "seizure_clonic": dict(hr=118, spo2=81, temp=39.0, vib=0.92, noise=0.15),
+    "febrile_seizure": dict(hr=126, spo2=88, temp=40.0, vib=0.75, noise=0.12),
+    "exercise": dict(hr=132, spo2=98, temp=37.1, vib=0.82, noise=0.08),
 }
 
 
@@ -76,6 +79,8 @@ def main() -> None:
                 "ecg": ecg_second(a.fs, cfg["hr"], cfg["noise"], rng),
                 "spo2": int(round(cfg["spo2"] + rng.normal(0, 0.4))),
                 "pulse": int(round(cfg["hr"] + rng.normal(0, 2))),
+                "temp": round(float(cfg.get("temp", 36.8) + rng.normal(0, 0.05)), 1),
+                "vib": round(max(0.01, float(cfg.get("vib", 0.05) + rng.normal(0, 0.02))), 2),
                 "finger": True,
             }
             if a.lat is not None and a.lng is not None:

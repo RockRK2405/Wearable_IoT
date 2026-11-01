@@ -1,40 +1,34 @@
-# CardioWatch Cloud — Health IoT Monitor with Emergency Alerts
+# CardioWatch Cloud — Health IoT & Epilepsy / Clonic Seizure Monitoring
 
-An ESP32 reads **ECG (AD8232)** and **SpO₂/pulse (MAX30102)**, streams the readings
-to a **cloud backend over WiFi**, and a **live dashboard** shows them from anywhere.
-When the backend detects an **abnormal ECG or SpO₂ episode**, it automatically
-**texts the patient's emergency contact a message with a Google Maps link to their
-location** (and can place a voice call too).
+An intelligent IoT health monitor combining continuous cardiovascular screening with real-time **Clonic Seizure / Epilepsy Detection** based on the IEEE PuneCon published architecture (*"Smart AIOT Band for Clonic Seizure Monitoring in Epilepsy Management"*).
 
-> ⚠️ **Not a medical device.** Alerts are threshold / heuristic screening only, and
-> the SpO₂ value from the MAX30102 reference algorithm is uncalibrated. Do not use
-> for diagnosis or treatment.
+An ESP32 wearable band reads **ECG (AD8232)**, **SpO₂/pulse (MAX30102)**, **Core Body Temperature (DS18B20)**, and **Muscle Tremors (Vibration Sensor)**, streaming readings to a **cloud backend over WiFi**. When the system detects an **abnormal ECG/SpO₂ episode or a clonic seizure event**, it automatically **texts the patient's emergency contact an SMS alert and places a phone call with a Google Maps location link**.
+
+> ⚠️ **Not a medical device.** Alerts are threshold screening & machine learning heuristics. Do not use for definitive clinical diagnosis or treatment.
 
 ---
 
 ## What it does
 
 ```
-  ESP32 (AD8232 + MAX30102)                 Cloud backend (FastAPI)              People
-  ┌──────────────────────┐   HTTPS POST    ┌───────────────────────────┐
-  │ sample ECG @250Hz     │ ──/api/ingest──▶│ ingest → detect abnormal   │        📱 Dashboard
-  │ read SpO₂ / pulse     │   every 1 s     │ ECG / SpO₂ episodes        │──live──▶  (any browser)
-  │ (optional GPS lat/lng)│                 │ log to CSV, push to UI     │
-  └──────────────────────┘                 │        │ critical?         │        📨 Emergency
-                                            │        ▼                   │──SMS/──▶  contact
-                                            │ emergency notifier ────────┼─call──▶  (+ map link)
-                                            └───────────────────────────┘
+  ESP32 Wearable Band                                   Cloud Backend (FastAPI + ML)            People
+  ┌─────────────────────────────────┐   HTTPS POST     ┌────────────────────────────────────┐
+  │ • ECG @250Hz (AD8232)            │ ──/api/ingest───▶│ Ingest & Preprocessing             │   📱 Live Dashboard
+  │ • SpO₂ & Pulse (MAX30102)        │   every 1 s      │ Random Forest Seizure ML           │──▶ (Web Browser)
+  │ • Body Temp (DS18B20)            │                  │ Multimodal Abnormality Detection   │
+  │ • Muscle Tremor (SW-420/Vib)     │                  │ CSV Logging & ThingSpeak Mirror    │   📨 Emergency
+  │ • Optional GPS (NEO-6M Lat/Lng)  │                  │        │ Critical?                 │──▶ Contact (SMS
+  └─────────────────────────────────┘                  │        ▼                           │    + Voice Call
+                                                        │ Emergency Alert Dispatcher (Twilio)│    + Maps Link)
+                                                        └────────────────────────────────────┘
 ```
 
-**Dashboard features (kept simple):**
-- Live **heart rate**, **SpO₂**, and **ECG waveform**, with a colour‑coded NORMAL /
-  WARNING / CRITICAL banner.
-- **Emergency contact & location** panel: set the contact's phone, choose *critical
-  only* vs *warning + critical*, toggle an optional call, and set the location (type
-  coordinates, or press **“Use my location”**, or let the device send GPS).
-- **Alerts** list and **Emergency notifications sent** feed (shows every SMS, with the
-  map link and whether it was real or simulated).
-- A **“Send test alert”** button to verify the whole notification path.
+**Key Capabilities:**
+- **Clonic Seizure Detection (Random Forest ML)**: Analyzes co-occurring physiological anomalies—sudden tachycardia, rhythmic muscle vibrations (m/s²), SpO₂ desaturation, and thermal dysregulation—achieving up to **96.36% accuracy** under noisy wearable data.
+- **Exercise Discrimination**: Accurately differentiates between intense physical exercise (high HR + motion, but normal SpO₂ & temperature) and pathological clonic seizures, minimizing false alarms.
+- **Cardiovascular Monitoring**: Continuous ECG waveform streaming, real-time R-peak detection, RMSSD Heart Rate Variability (HRV), and hypoxia screening.
+- **Instant Emergency Contact Alerts**: Automatic SMS and text-to-speech phone call with Google Maps location coordinates dispatched on critical episodes.
+- **ThingSpeak Cloud Mirroring**: Public 8-field telemetry channel support for external analytics and reports.
 
 ---
 
@@ -53,36 +47,17 @@ and a location and press **Save**. In a second terminal, stream fake device data
 
 ```bash
 source .venv/bin/activate
-python scripts/cloud_device_sim.py --scenario normal   --seconds 10
-python scripts/cloud_device_sim.py --scenario hypoxia   # SpO₂ 82% → CRITICAL
+python scripts/cloud_device_sim.py --scenario normal          --seconds 10
+python scripts/cloud_device_sim.py --scenario seizure_clonic  # Tachycardia + Rhythmic Tremors + SpO2 drop -> CRITICAL SEIZURE
+python scripts/cloud_device_sim.py --scenario exercise        # High HR + High motion -> Normal (Discriminates non-seizure!)
+python scripts/cloud_device_sim.py --scenario febrile_seizure # High fever (40°C) + Tremor -> CRITICAL SEIZURE
 ```
 
-When the hypoxia episode opens you'll see the banner turn red and a new entry under
-**Emergency notifications sent**. With no Twilio account configured the notifier runs
-in **simulated** mode: the SMS text (including the maps link) is shown on the dashboard
-and written to `data/notifications.log`, but not actually sent.
+When the seizure episode opens you'll see the dashboard flash red, the **Epilepsy Monitor** badge switch to **SEIZURE ALERT**, and an emergency alert dispatched with Google Maps coordinates under **Emergency notifications sent**. With no Twilio account configured the notifier runs in **simulated** mode: the alert text is recorded to `data/notifications.log` and displayed in the live UI.
 
 > Prefer the built‑in simulator instead of the poster script? `python run.py` (simulated
 > mode) generates patients automatically; set `NOTIFY_ON_SIMULATED=true` in `.env` to let
-> a simulated hypoxia/arrhythmia episode also fire a (simulated) alert.
-
----
-
-## Sending real SMS / calls (Twilio)
-
-1. Create a free [Twilio](https://www.twilio.com/try-twilio) account and get an
-   **Account SID**, **Auth Token**, and a **From number** (SMS‑capable; on a trial
-   account you can only text *verified* numbers — verify your emergency contact first).
-2. Put them in `.env`:
-   ```ini
-   TWILIO_ACCOUNT_SID=ACxxxxxxxx
-   TWILIO_AUTH_TOKEN=xxxxxxxx
-   TWILIO_FROM_NUMBER=+1xxxxxxxxxx
-   ```
-3. `pip install twilio`, restart, and the dashboard badge switches from
-   `alerts: simulated` to `alerts: twilio`. Press **Send test alert** to confirm.
-
-The contact number must be in international format, e.g. `+9198XXXXXXXX`.
+> a simulated episode fire a (simulated) alert.
 
 ---
 
@@ -90,19 +65,33 @@ The contact number must be in international format, e.g. `+9198XXXXXXXX`.
 
 **Wiring**
 
-| Module | Pin | ESP32 |
-|---|---|---|
-| AD8232 | OUTPUT | GPIO34 (ADC, input‑only) |
-| AD8232 | LO+ / LO− | GPIO32 / GPIO33 |
-| AD8232 | 3.3V / GND | 3V3 / GND |
-| MAX30102 | SDA / SCL | GPIO21 / GPIO22 |
-| MAX30102 | VIN / GND | 3V3 / GND |
-| *(optional)* NEO‑6M GPS | TX / RX | GPIO16 / GPIO17 |
+| Module | Pin | ESP32 | Description |
+|---|---|---|---|
+| AD8232 | OUTPUT | GPIO34 | ECG analog signal (ADC1 input-only) |
+| AD8232 | LO+ / LO− | GPIO32 / GPIO33 | Leads-off detection |
+| AD8232 | 3.3V / GND | 3V3 / GND | Power |
+| MAX30102 | SDA / SCL | GPIO21 / GPIO22 | I2C pulse oximetry & heart rate |
+| MAX30102 | VIN / GND | 3V3 / GND | Power |
+| **DS18B20** | DATA | GPIO4 | Digital temperature (OneWire with 4.7kΩ pull-up) |
+| **SW-420** | DO / OUT | GPIO27 | Vibration / clonic muscle tremor sensor |
+| *(optional)* NEO‑6M GPS | TX / RX | GPIO16 / GPIO17 | Real-time GPS location tracking |
+
+**ThingSpeak 8-Field Mapping:**
+- **Field 1**: Heart rate (BPM)
+- **Field 2**: SpO₂ (%)
+- **Field 3**: Temperature (°C)
+- **Field 4**: Vibration intensity (m/s²)
+- **Field 5**: Seizure detected flag (0 = normal, 1 = clonic seizure)
+- **Field 6**: Latitude (GPS)
+- **Field 7**: Longitude (GPS)
+- **Field 8**: Sensor validity / status
 
 **Flashing** (`firmware/esp32_cloud_health_monitor/`)
 
-1. Arduino IDE → install **ESP32** boards and the **SparkFun MAX3010x** library
-   (plus **TinyGPSPlus** only if you set `USE_GPS 1`).
+1. Arduino IDE → install **ESP32** board support, plus libraries:
+   - **SparkFun MAX3010x**
+   - **OneWire** & **DallasTemperature** (for DS18B20)
+   - **TinyGPSPlus** (only if `USE_GPS 1`)
 2. Edit `config.h`:
    - `WIFI_SSID` / `WIFI_PASS`
    - `SERVER_URL` → your backend, e.g. `http://192.168.1.10:8000` (laptop on same WiFi)

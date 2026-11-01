@@ -32,7 +32,7 @@ log = logging.getLogger("emergency")
 
 # Only these categories represent the patient's condition; sensor/signal notices
 # (leads off, no finger, no data) never trigger an emergency call-out.
-NOTIFY_CATEGORIES = ("vital", "ecg_heuristic")
+NOTIFY_CATEGORIES = ("vital", "ecg_heuristic", "seizure")
 
 
 def _iso(ts: float) -> str:
@@ -131,7 +131,11 @@ class EmergencyNotifier:
     # ---------- message ----------
     def compose(self, ep: dict, prof: PatientProfile) -> str:
         name = prof.name or ep.get("patient_id", "patient")
-        bits = [f"CardioWatch ALERT: {name}", ep.get("message") or ep.get("code", "abnormal reading")]
+        code = ep.get("code", "")
+        if "SEIZURE" in code:
+            bits = [f"CardioWatch EMERGENCY: {name}", "CLONIC SEIZURE DETECTED (Epilepsy Alert)", ep.get("message") or "Rhythmic muscle tremors detected."]
+        else:
+            bits = [f"CardioWatch ALERT: {name}", ep.get("message") or ep.get("code", "abnormal reading")]
         vit = []
         if ep.get("hr_bpm") is not None:
             vit.append(f"HR {ep['hr_bpm']:.0f}")

@@ -12,7 +12,7 @@
     <span class="logo">❤</span>
     <div>
       <h1>CardioWatch <span class="cloud">Cloud</span></h1>
-      <p class="tagline">ECG &amp; SpO₂ monitoring with automatic emergency alerts</p>
+      <p class="tagline">ECG, SpO₂ &amp; Clonic Seizure / Epilepsy Monitoring with Automatic Alerts</p>
     </div>
   </div>
   <div class="conn">
@@ -44,6 +44,21 @@
       <div class="label">SpO₂</div>
       <div class="value"><span id="spo2">—</span><span class="unit">%</span></div>
       <div class="sub" id="spSub">blood oxygen</div>
+    </div>
+    <div class="card vital" id="tempCard">
+      <div class="label">Temperature</div>
+      <div class="value"><span id="temp">—</span><span class="unit">°C</span></div>
+      <div class="sub" id="tempSub">DS18B20 core</div>
+    </div>
+    <div class="card vital" id="vibCard">
+      <div class="label">Muscle Tremor</div>
+      <div class="value"><span id="vib">—</span><span class="unit">m/s²</span></div>
+      <div class="sub" id="vibSub">vibration intensity</div>
+    </div>
+    <div class="card vital" id="seizureCard">
+      <div class="label">Epilepsy Monitor</div>
+      <div class="value small"><span id="seizureStatus">NORMAL</span></div>
+      <div class="sub" id="seizureSub">ML prob <span id="seizureProb">0%</span> · Random Forest</div>
     </div>
     <div class="card vital" id="ecgCard">
       <div class="label">ECG signal</div>

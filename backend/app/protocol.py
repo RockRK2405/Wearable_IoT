@@ -78,8 +78,13 @@ def parse_message(raw, default_dev: str = "device", topic_dev: str | None = None
         spo2_ok = _truthy(obj.get("spo2_valid", 1 if spo2 is not None else 0)) and spo2 is not None and 50 < spo2 <= 100
         pulse = _num(obj.get("pulse"))
         pulse_ok = _truthy(obj.get("pulse_valid", 1 if pulse is not None else 0)) and pulse is not None and 25 <= pulse <= 250
+        temp = _num(obj.get("temp") if "temp" in obj else obj.get("temperature_c") if "temperature_c" in obj else obj.get("temperature"))
+        temp_ok = temp is not None and 20.0 <= temp <= 48.0
+        vib = _num(obj.get("vib") if "vib" in obj else obj.get("vibration_intensity") if "vibration_intensity" in obj else obj.get("vibration"))
+        vib_ok = vib is not None and 0.0 <= vib <= 50.0
         return {**base, "type": "vitals", "spo2": spo2 if spo2_ok else None,
-                "pulse": pulse if pulse_ok else None, "finger": _truthy(obj.get("finger", 1))}
+                "pulse": pulse if pulse_ok else None, "finger": _truthy(obj.get("finger", 1)),
+                "temp": temp if temp_ok else None, "vib": vib if vib_ok else None}
 
     if t in ("hello", "status"):
         return None

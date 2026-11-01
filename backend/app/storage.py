@@ -15,7 +15,8 @@ from .detection import CODE_INFO, parse_codes
 
 COLUMNS = [
     "timestamp", "epoch_ms", "data_source", "patient_id", "device_id",
-    "hr_bpm", "hr_source", "pulse_bpm", "spo2_pct",
+    "hr_bpm", "hr_source", "pulse_bpm", "spo2_pct", "temperature_c", "vibration_intensity",
+    "seizure_detected", "seizure_prob",
     "rr_mean_ms", "sdnn_ms", "rmssd_ms", "rr_cv", "beats_in_window", "ecg_quality",
     "leads_off", "finger_detected", "ecg_irregular_flag",
     "status", "alert_codes", "alert_message", "scenario", "ecg_fs", "ecg_snippet",
